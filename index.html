@@ -35,7 +35,7 @@
   (() => {
     "use strict";
     const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
-    const SALT = b64("07gOB5lQ3f5aFhllpFUXiw=="), ITER = 600000;
+    const SALT = b64("mVw51l53MgxLDtA1YVN+XQ=="), ITER = 600000;
     const msg = document.getElementById("msg"), form = document.getElementById("gate");
     const get = async (u) => { const r = await fetch(u); if (!r.ok) throw new Error("net"); return r.arrayBuffer(); };
     let key;
