@@ -37,7 +37,8 @@
     const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
     const SALT = b64("TOUuadZMIdiUi/qKN4RTYA=="), ITER = 600000;
     const msg = document.getElementById("msg"), form = document.getElementById("gate");
-    const get = async (u) => { const r = await fetch(u); if (!r.ok) throw new Error("net"); return r.arrayBuffer(); };
+    const norm = (s) => s.replace(/[İIı]/g, "i").toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, "");
+    const get = async (u) => { const r = await fetch(u, { cache: "no-cache" }); if (!r.ok) throw new Error("net"); return r.arrayBuffer(); };
     let key;
     const open = (buf) => crypto.subtle.decrypt({ name: "AES-GCM", iv: buf.slice(0, 12) }, key, buf.slice(12));
 
@@ -47,7 +48,7 @@
       btn.disabled = true;
       msg.textContent = "Kontrol ediliyor...";
       try {
-        const pass = document.getElementById("code").value.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const pass = norm(document.getElementById("code").value);
         const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
         key = await crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt: SALT, iterations: ITER }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
         const enc = await get("a.bin");
