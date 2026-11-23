@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="referrer" content="no-referrer">
+  <title>EkipNoFlix</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .gate form { display: flex; gap: 10px; width: min(440px, 100%); }
+    .gate input { flex: 1; min-width: 0; padding: 14px 16px; border-radius: 4px; border: 1px solid #666; background: #222; color: #fff; font: inherit; }
+    .gate form button { padding: 0 24px; border-radius: 4px; background: var(--red); font-weight: 700; }
+    .gate form button:disabled { opacity: .5; cursor: wait; }
+    .gate output { display: block; min-height: 24px; margin-top: 16px; color: var(--muted); }
+    .gate .note { color: #8c8c8c; font-size: 13px; margin-top: 40px; max-width: 440px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <section class="screen gate">
+    <div class="logo logo--top" aria-label="EkipNoFlix"><span>EKİP</span><b>NO</b><span>FLIX</span></div>
+    <h1>Ekipten misin?</h1>
+    <form id="gate">
+      <input id="code" type="text" placeholder="Ekip şifresi" aria-label="Ekip şifresi" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" required>
+      <button>Gir</button>
+    </form>
+    <output id="msg"></output>
+    <p class="note">Arkadaşlar arası bir şaka sayfasıdır. Netflix ile hiçbir ilgisi yoktur, üyelik veya kişisel bilgi istemez. Sadece ekip şifresini yaz.</p>
+  </section>
+  <script>
+  (() => {
+    "use strict";
+    const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+    const SALT = b64("07gOB5lQ3f5aFhllpFUXiw=="), ITER = 600000;
+    const msg = document.getElementById("msg"), form = document.getElementById("gate");
+    const get = async (u) => { const r = await fetch(u); if (!r.ok) throw new Error("net"); return r.arrayBuffer(); };
+    let key;
+    const open = (buf) => crypto.subtle.decrypt({ name: "AES-GCM", iv: buf.slice(0, 12) }, key, buf.slice(12));
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector("button");
+      btn.disabled = true;
+      msg.textContent = "Kontrol ediliyor...";
+      try {
+        const pass = document.getElementById("code").value.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+        key = await crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt: SALT, iterations: ITER }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+        const enc = await get("a.bin");
+        let data;
+        try { data = JSON.parse(new TextDecoder().decode(await open(enc))); } catch { msg.textContent = "Şifre yanlış. Ekipten değilsin galiba."; return; }
+        msg.textContent = "Utançlar yükleniyor...";
+        const pack = await open(await get("t.bin"));
+        const tn = {};
+        data.thumbs.forEach(([id, off, len]) => (tn[id] = URL.createObjectURL(new Blob([pack.slice(off, off + len)], { type: "image/webp" }))));
+        const type = {};
+        data.media.forEach((m) => { m.thumb = tn[m.id]; type[m.src] = m.type === "video" ? "video/mp4" : "image/webp"; });
+        const cache = new Map();
+        window.EKIP_RESOLVE = (name) => {
+          if (!cache.has(name)) {
+            const p = get("m/" + name + ".bin").then(open).then((buf) => URL.createObjectURL(new Blob([buf], { type: type[name] })));
+            p.catch(() => cache.delete(name));
+            cache.set(name, p);
+          }
+          return cache.get(name);
+        };
+        window.EKIP_MEDIA = data.media;
+        window.EKIP_TITLES = data.titles;
+        document.body.innerHTML = data.body;
+        const s = document.createElement("script");
+        s.textContent = data.app;
+        document.body.append(s);
+      } catch {
+        msg.textContent = "Yüklenemedi. İnternetini kontrol edip tekrar dene.";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  })();
+  </script>
+</body>
+</html>
